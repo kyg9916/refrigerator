@@ -13,8 +13,15 @@ def index():
 
     search_query = request.args.get('search', '')
 
+    # 🔢 각 테이블별 현재 페이지 번호 안전하게 받아오기 (기본값 1)
+    page_expired = request.args.get('page_expired', 1, type=int)
+    page_imminent = request.args.get('page_imminent', 1, type=int)
+    page_fresh = request.args.get('page_fresh', 1, type=int)
+
+    per_page = 10  # ✨ 10개 단위로 세팅
+
     # 📊 1. 가계부 통계용 계산 (소비 여부 무관 전체 누적액)
-    all_ingredients = Ingredient.query.all()  # <--- 이 변수를 그대로 활용합니다.
+    all_ingredients = Ingredient.query.all()
     total_spent = sum(item.price for item in all_ingredients)
 
     # 🍎 카테고리별 누적 지출액 계산 (그래프용)
@@ -22,27 +29,38 @@ def index():
     frozen_spent = sum(item.price for item in all_ingredients if item.category == '냉동')
     room_spent = sum(item.price for item in all_ingredients if item.category == '실온')
 
-    # 🔍 2. 냉장고 리스트용 쿼리 (아직 안 먹은 것만)
+    # 🔍 2. 냉장고 리스트용 베이스 쿼리 (아직 안 먹은 것만)
     query = Ingredient.query.filter_by(is_consumed=False)
 
     if search_query:
         query = query.filter(Ingredient.name.like(f"%{search_query}%"))
 
-    expired_items = query.filter(Ingredient.expiry_date < today).order_by(Ingredient.expiry_date.asc()).all()
-    imminent_items = query.filter(Ingredient.expiry_date >= today, Ingredient.expiry_date <= three_days_later).order_by(
-        Ingredient.expiry_date.asc()).all()
-    fresh_items = query.filter(Ingredient.expiry_date > three_days_later).order_by(Ingredient.expiry_date.asc()).all()
+    # 🔢 각 조건별 페이징 쿼리 수행
+    expired_pagination = query.filter(Ingredient.expiry_date < today) \
+        .order_by(Ingredient.expiry_date.asc()) \
+        .paginate(page=page_expired, per_page=per_page, error_out=False)
+
+    imminent_pagination = query.filter(Ingredient.expiry_date >= today, Ingredient.expiry_date <= three_days_later) \
+        .order_by(Ingredient.expiry_date.asc()) \
+        .paginate(page=page_imminent, per_page=per_page, error_out=False)
+
+    fresh_pagination = query.filter(Ingredient.expiry_date > three_days_later) \
+        .order_by(Ingredient.expiry_date.asc()) \
+        .paginate(page=page_fresh, per_page=per_page, error_out=False)
 
     return render_template('index.html',
-                           expired_items=expired_items,
-                           imminent_items=imminent_items,
-                           fresh_items=fresh_items,
-                           all_ingredients=all_ingredients,  # ✨ [추가] 전체 아이템 목록을 추가로 넘겨줍니다.
+                           expired_items=expired_pagination.items,  # 실제 테이블에 뿌릴 리스트 10개
+                           expired_pagination=expired_pagination,  # HTML 매크로에 넘겨줄 페이징 정보 객체
+                           imminent_items=imminent_pagination.items,
+                           imminent_pagination=imminent_pagination,
+                           fresh_items=fresh_pagination.items,
+                           fresh_pagination=fresh_pagination,
+                           all_ingredients=all_ingredients,
                            search_query=search_query,
                            total_spent=total_spent,
                            stats={
                                '냉장': refrigerated_spent,
-                               'frozen': frozen_spent, # 만약 기존 통계 키값이 '냉동'이면 '냉동'으로 유지
+                               'frozen': frozen_spent,
                                '냉동': frozen_spent,
                                '실온': room_spent
                            })
