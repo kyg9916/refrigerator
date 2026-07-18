@@ -11,4 +11,5 @@ class Ingredient(db.Model):
     expiry_date = db.Column(db.Date, nullable=False)  # 유통기한
     price = db.Column(db.Integer, default=0) # 가격
     is_consumed = db.Column(db.Boolean, default=False)
+    consumed_at = db.Column(db.DateTime, nullable=True)  # ✨ 추가: 소비한 날짜 및 시간
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

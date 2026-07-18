@@ -20,6 +20,10 @@
 <body class="container mt-5 bg-light">
     <h1 class="mb-4">나만의 냉장고 🍎</h1>
 
+    <div class="d-flex justify-content-between align-items-center mb-4">
+    <a href="/history" class="btn btn-primary fw-bold">📜 소비 히스토리 보기</a>
+</div>
+
     <div class="row mb-4">
         <div class="col-md-7">
             <div class="alert alert-info h-100 d-flex flex-column justify-content-center position-relative" role="alert">
@@ -39,6 +43,23 @@
                 <div class="chart-container">
                     <canvas id="statsChart"></canvas>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card p-3 mb-4 shadow-sm border-secondary bg-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-1 text-dark fw-bold">🤖 AI 프롬프트 데이터 추출</h5>
+                <p class="text-muted small mb-0">현재 냉장고에 있는 전체 식재료 목록을 원하는 형태로 복사하여 ChatGPT나 Claude 등 LLM에게 간편하게 전달해 보세요.</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" id="copyTextBtn" class="btn btn-outline-dark d-flex align-items-center gap-2">
+                    📝 식재료 텍스트 복사
+                </button>
+                <button type="button" id="copyJsonBtn" class="btn btn-dark d-flex align-items-center gap-2">
+                    📋 식재료 JSON 복사
+                </button>
             </div>
         </div>
     </div>
@@ -90,7 +111,6 @@
                 <td>
                     <div class="d-flex gap-1">
                         <button type="button" class="btn btn-outline-primary btn-sm js-edit-btn" data-id="{{ item.id }}" data-bs-toggle="modal" data-bs-target="#editModal{{ item.id }}">수정</button>
-
                         <form action="{{ url_for('refrigerator.delete', item_id=item.id) }}" method="POST" {% if is_expired %}onsubmit="return confirm('버리시겠습니까?');"{% endif %}>
                             <button type="submit" class="btn btn-{{ 'outline-danger' if is_expired else ('success' if table_class=='warning' else 'outline-secondary') }} btn-sm">
                                 {{ '버림/삭제' if is_expired else ('먹었음! (삭제)' if table_class=='warning' else '소비 완료') }}
@@ -109,13 +129,13 @@
     <nav aria-label="Table navigation">
         <ul class="pagination pagination-sm justify-content-center mb-4">
             <li class="page-item {{ 'disabled' if not pagination_obj.has_prev }}">
-                <a class="page-link" href="?search={{ search_query }}&page_expired={{ pagination_obj.prev_num if page_param_name=='page_expired' and pagination_obj.has_prev else request.args.get('page_expired', 1) }}&page_imminent={{ pagination_obj.prev_num if page_param_name=='page_imminent' and pagination_obj.has_prev else request.args.get('page_imminent', 1) }}&page_fresh={{ pagination_obj.prev_num if page_param_name=='page_fresh' and pagination_obj.has_prev else request.args.get('page_fresh', 1) }}">이전</a>
+                <a class="page-link" href="?search={{ search_query }}&sort_fresh={{ sort_fresh }}&page_expired={{ pagination_obj.prev_num if page_param_name=='page_expired' and pagination_obj.has_prev else request.args.get('page_expired', 1) }}&page_imminent={{ pagination_obj.prev_num if page_param_name=='page_imminent' and pagination_obj.has_prev else request.args.get('page_imminent', 1) }}&page_fresh={{ pagination_obj.prev_num if page_param_name=='page_fresh' and pagination_obj.has_prev else request.args.get('page_fresh', 1) }}">이전</a>
             </li>
 
             {% for page in pagination_obj.iter_pages(left_edge=2, left_current=2, right_current=3, right_edge=2) %}
                 {% if page %}
                     <li class="page-item {{ 'active' if page == pagination_obj.page }}">
-                        <a class="page-link" href="?search={{ search_query }}&page_expired={{ page if page_param_name=='page_expired' else request.args.get('page_expired', 1) }}&page_imminent={{ page if page_param_name=='page_imminent' else request.args.get('page_imminent', 1) }}&page_fresh={{ page if page_param_name=='page_fresh' else request.args.get('page_fresh', 1) }}">{{ page }}</a>
+                        <a class="page-link" href="?search={{ search_query }}&sort_fresh={{ sort_fresh }}&page_expired={{ page if page_param_name=='page_expired' else request.args.get('page_expired', 1) }}&page_imminent={{ page if page_param_name=='page_imminent' else request.args.get('page_imminent', 1) }}&page_fresh={{ page if page_param_name=='page_fresh' else request.args.get('page_fresh', 1) }}">{{ page }}</a>
                     </li>
                 {% else %}
                     <li class="page-item disabled"><span class="page-link">...</span></li>
@@ -123,7 +143,7 @@
             {% endfor %}
 
             <li class="page-item {{ 'disabled' if not pagination_obj.has_next }}">
-                <a class="page-link" href="?search={{ search_query }}&page_expired={{ pagination_obj.next_num if page_param_name=='page_expired' and pagination_obj.has_next else request.args.get('page_expired', 1) }}&page_imminent={{ pagination_obj.next_num if page_param_name=='page_imminent' and pagination_obj.has_next else request.args.get('page_imminent', 1) }}&page_fresh={{ pagination_obj.next_num if page_param_name=='page_fresh' and pagination_obj.has_next else request.args.get('page_fresh', 1) }}">다음</a>
+                <a class="page-link" href="?search={{ search_query }}&sort_fresh={{ sort_fresh }}&page_expired={{ pagination_obj.next_num if page_param_name=='page_expired' and pagination_obj.has_next else request.args.get('page_expired', 1) }}&page_imminent={{ pagination_obj.next_num if page_param_name=='page_imminent' and pagination_obj.has_next else request.args.get('page_imminent', 1) }}&page_fresh={{ pagination_obj.next_num if page_param_name=='page_fresh' and pagination_obj.has_next else request.args.get('page_fresh', 1) }}">다음</a>
             </li>
         </ul>
     </nav>
@@ -136,7 +156,19 @@
     <h2 class="text-warning mt-4">⏳ 유통기한 임박 (3일 이하)</h2>
     {{ render_table(imminent_items, 'warning', '', imminent_pagination, 'page_imminent') }}
 
-    <h2 class="text-success mt-4">🥦 안전한 식재료</h2>
+
+    <div class="d-flex justify-content-between align-items-center mt-5 mb-2">
+        <h2 class="text-success m-0">🥦 안전한 식재료</h2>
+        <div style="max-width: 200px;">
+            <select id="sortFreshSelect" class="form-select form-select-sm shadow-sm">
+                <option value="expiry_asc" {% if sort_fresh == 'expiry_asc' %}selected{% endif %}>📅 유통기한 임박순</option>
+                <option value="expiry_desc" {% if sort_fresh == 'expiry_desc' %}selected{% endif %}>📅 유통기한 여유순</option>
+                <option value="category" {% if sort_fresh == 'category' %}selected{% endif %}>🗂️ 카테고리별 정렬</option>
+                <option value="price_asc" {% if sort_fresh == 'price_asc' %}selected{% endif %}>💰 가격 낮은순</option>
+                <option value="price_desc" {% if sort_fresh == 'price_desc' %}selected{% endif %}>💰 가격 높은순</option>
+            </select>
+        </div>
+    </div>
     {{ render_table(fresh_items, 'success', '', fresh_pagination, 'page_fresh') }}
 
     <h2 class="text-primary mt-5 mb-3">📅 유통기한 캘린더</h2>
@@ -181,60 +213,158 @@
     </div>
     {% endfor %}
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-
-            // 🛠️ 수정 버튼 이벤트 바인딩 (Bootstrap 내장 기능과 혼선 방지를 위한 안전 장치)
-            const editButtons = document.querySelectorAll('.js-edit-btn');
-            editButtons.forEach(button => {
-                button.addEventListener('click', function(e) {
-                    const itemId = this.getAttribute('data-id');
-                    const modalTarget = document.getElementById('editModal' + itemId);
-                    if (!modalTarget) {
-                        alert("해당 수정 모달창을 찾을 수 없습니다. ID를 확인해 주세요.");
-                    }
-                });
-            });
-
-            // 📅 1. 달력 연동 스크립트
-            var calendarEl = document.getElementById('calendar');
-            if (calendarEl && typeof FullCalendar !== 'undefined') {
-                var calendar = new FullCalendar.Calendar(calendarEl, {
-                    initialView: 'dayGridMonth',
-                    locale: 'ko',
-                    headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
-                    events: '/api/calendar-events',
-                    dateClick: function(info) {
-                        const dateInput = document.querySelector('input[type="date"]');
-                        if(dateInput) dateInput.value = info.dateStr;
-                    }
-                });
-                calendar.render();
-            }
-
-            // 📊 2. Chart.js 통계 도넛 그래프 생성
-            var ctx = document.getElementById('statsChart');
-            if (ctx && typeof Chart !== 'undefined') {
-                var statsChart = new Chart(ctx.getContext('2d'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['냉장', '냉동', '실온'],
-                        datasets: [{
-                            data: [{{ stats['냉장'] }}, {{ stats['냉동'] }}, {{ stats['실온'] }}],
-                            backgroundColor: ['#3788d8', '#dc3545', '#ffc107'],
-                            hoverOffset: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'right' }
-                        }
-                    }
-                });
-            }
-        });
+    <script id="ingredients-data" type="application/json">
+        [
+            {% for item in all_ingredients %}
+            {
+                "name": {{ item.name | tojson }},
+                "category": {{ item.category | tojson }},
+                "price": {{ item.price | int }},
+                "expiry_date": {{ item.expiry_date | tojson }}
+            }{% if not loop.last %},{% endif %}
+            {% endfor %}
+        ]
     </script>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+
+        // 🛠️ 수정 버튼 이벤트 바인딩
+        const editButtons = document.querySelectorAll('.js-edit-btn');
+        editButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                const itemId = this.getAttribute('data-id');
+                const modalTarget = document.getElementById('editModal' + itemId);
+                if (!modalTarget) {
+                    alert("해당 수정 모달창을 찾을 수 없습니다. ID를 확인해 주세요.");
+                }
+            });
+        });
+
+        // 📅 1. 달력 연동 스크립트
+        var calendarEl = document.getElementById('calendar');
+        if (calendarEl && typeof FullCalendar !== 'undefined') {
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                locale: 'ko',
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
+                events: '/api/calendar-events',
+                dateClick: function(info) {
+                    const dateInput = document.querySelector('input[type="date"]');
+                    if(dateInput) dateInput.value = info.dateStr;
+                }
+            });
+            calendar.render();
+        }
+
+        // 📊 2. Chart.js 통계 도넛 그래프 생성
+        var ctx = document.getElementById('statsChart');
+        if (ctx && typeof Chart !== 'undefined') {
+            var statsChart = new Chart(ctx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['냉장', '냉동', '실온'],
+                    datasets: [{
+                        data: [{{ stats['냉장'] }}, {{ stats['냉동'] }}, {{ stats['실온'] }}],
+                        backgroundColor: ['#3788d8', '#dc3545', '#ffc107'],
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right' }
+                    }
+                }
+            });
+        }
+
+        // 🔄 안전한 식재료 정렬 콤보박스 변경 감지 이벤트
+        const sortSelect = document.getElementById('sortFreshSelect');
+        if (sortSelect) {
+            sortSelect.addEventListener('change', function() {
+                const selectedValue = this.value;
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('sort_fresh', selectedValue);
+                currentUrl.searchParams.set('page_fresh', '1');
+                window.location.href = currentUrl.toString();
+            });
+        }
+
+        // 📋 3. LLM 데이터 클립보드 복사 (JSON 형태)
+        const copyBtn = document.getElementById('copyJsonBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function() {
+                try {
+                    const rawData = document.getElementById('ingredients-data').textContent;
+                    const parsedData = JSON.parse(rawData);
+                    const formattedString = JSON.stringify(parsedData, null, 2);
+
+                    navigator.clipboard.writeText(formattedString).then(() => {
+                        const originalText = copyBtn.innerHTML;
+                        copyBtn.className = "btn btn-success d-flex align-items-center gap-2";
+                        copyBtn.innerHTML = "✅ 복사 완료!";
+                        setTimeout(() => {
+                            copyBtn.className = "btn btn-dark d-flex align-items-center gap-2";
+                            copyBtn.innerHTML = originalText;
+                        }, 2000);
+                    }).catch(err => {
+                        alert("복사에 실패했습니다. 브라우저 권한을 확인해주세요.");
+                    });
+                } catch (e) {
+                    alert("데이터를 구성하는 중 오류가 발생했습니다.");
+                }
+            }); // 👈 copyBtn 이벤트 리스너가 여기서 정상적으로 닫혀야 합니다.
+        }
+
+        // 📝 4. 식재료 텍스트 복사 기능 (완전히 분리됨)
+        const copyTextBtn = document.getElementById('copyTextBtn');
+        if (copyTextBtn) {
+            copyTextBtn.addEventListener('click', function() {
+                try {
+                    const rawData = document.getElementById('ingredients-data').textContent;
+                    const parsedData = JSON.parse(rawData);
+
+                    if (parsedData.length === 0) {
+                        alert("냉장고에 복사할 식재료가 없습니다.");
+                        return;
+                    }
+
+                    let formattedText = "[현재 냉장고 식재료 목록]\n";
+                    parsedData.forEach((item, index) => {
+                        let dateStr = item.expiry_date;
+                        try {
+                            const d = new Date(item.expiry_date);
+                            if (!isNaN(d.getTime())) {
+                                const yyyy = d.getFullYear();
+                                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                const dd = String(d.getDate()).padStart(2, '0');
+                                dateStr = `${yyyy}-${mm}-${dd}`;
+                            }
+                        } catch(e) { }
+
+                        formattedText += `${index + 1}. '${item.name}', '${item.category}', '${item.price.toLocaleString()}원', '유통기한: ${dateStr}'\n`;
+                    });
+
+                    navigator.clipboard.writeText(formattedText.trim()).then(() => {
+                        const originalText = copyTextBtn.innerHTML;
+                        copyTextBtn.className = "btn btn-success d-flex align-items-center gap-2";
+                        copyTextBtn.innerHTML = "✅ 복사 완료!";
+                        setTimeout(() => {
+                            copyTextBtn.className = "btn btn-outline-dark d-flex align-items-center gap-2";
+                            copyTextBtn.innerHTML = originalText;
+                        }, 2000);
+                    }).catch(err => {
+                        alert("복사에 실패했습니다. 브라우저 권한을 확인해주세요.");
+                    });
+                } catch (e) {
+                    alert("데이터를 텍스트로 구성하는 중 오류가 발생했습니다.");
+                }
+            });
+        }
+
+    }); // DOMContentLoaded 끝
+</script>
 </body>
 </html>
